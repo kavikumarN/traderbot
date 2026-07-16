@@ -11,17 +11,17 @@ export interface NavItem {
   label: string
   path?: string
   icon: ComponentType<SvgIconProps>
-  /** No trading pages exist yet (Phase 2 is the foundation only) — these
-   * are shown, disabled, so the sidebar reads as a real product shell
-   * rather than empty, without linking anywhere that doesn't exist. */
+  /** Set when a page genuinely doesn't exist yet — shown, disabled, so the
+   * sidebar reads as a real product shell rather than empty, without
+   * linking anywhere that doesn't exist. */
   disabled?: boolean
 }
 
 export const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: DashboardRoundedIcon },
-  { label: 'Strategies', icon: TrendingUpRoundedIcon, disabled: true },
-  { label: 'Orders', icon: ReceiptLongRoundedIcon, disabled: true },
+  { label: 'Strategies', path: '/strategies', icon: TrendingUpRoundedIcon },
+  { label: 'Orders', path: '/orders', icon: ReceiptLongRoundedIcon },
   { label: 'Portfolio', path: '/portfolio', icon: AccountBalanceWalletRoundedIcon },
   { label: 'Backtesting', path: '/backtesting', icon: ScienceRoundedIcon },
-  { label: 'Risk', icon: ShieldRoundedIcon, disabled: true },
+  { label: 'Risk', path: '/risk', icon: ShieldRoundedIcon },
 ]

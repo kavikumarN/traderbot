@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, status
 from app.application.use_cases.backtesting.get_backtest import GetBacktestUseCase
 from app.application.use_cases.backtesting.list_backtests import ListBacktestsUseCase
 from app.application.use_cases.backtesting.run_backtest import RunBacktestCommand, RunBacktestUseCase
+from app.application.use_cases.strategies.analyze_patterns import AnalyzePatternsCommand, AnalyzePatternsUseCase
 from app.application.use_cases.strategies.create_strategy import (
     CreateStrategyCommand,
     CreateStrategyUseCase,
@@ -29,6 +30,7 @@ from app.domain.entities.user import User
 from app.domain.strategy.plugin_manager import PluginManager
 from app.interface.api.backtest_mappers import backtest_to_response
 from app.interface.api.deps import (
+    get_analyze_patterns_use_case,
     get_create_strategy_use_case,
     get_current_user,
     get_get_backtest_use_case,
@@ -41,7 +43,9 @@ from app.interface.api.deps import (
     get_update_strategy_status_use_case,
     require_permission,
 )
+from app.interface.api.pattern_analysis_mappers import analysis_result_to_response
 from app.interface.api.schemas.backtest import BacktestResponse, RunBacktestRequest
+from app.interface.api.schemas.pattern_analysis import AnalyzePatternsRequest, PatternAnalysisResponse
 from app.interface.api.schemas.strategy import (
     CreateStrategyRequest,
     SignalResponse,
@@ -103,6 +107,20 @@ async def list_strategy_types(
     plugin_manager: PluginManager = Depends(get_plugin_manager),
 ) -> list[StrategyTypeResponse]:
     return [StrategyTypeResponse(strategy_type=t) for t in plugin_manager.list_available()]
+
+
+@router.post(
+    "/ai-builder/analyze",
+    response_model=PatternAnalysisResponse,
+    dependencies=[Depends(require_permission("strategies:read"))],
+    summary="AI Strategy Builder: detect candlestick/chart patterns across intervals and suggest a strategy",
+)
+async def analyze_patterns(
+    body: AnalyzePatternsRequest,
+    use_case: AnalyzePatternsUseCase = Depends(get_analyze_patterns_use_case),
+) -> PatternAnalysisResponse:
+    result = await use_case.execute(AnalyzePatternsCommand(symbol=body.symbol, intervals=body.intervals))
+    return analysis_result_to_response(result)
 
 
 @router.get(

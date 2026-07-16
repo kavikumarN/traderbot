@@ -2,29 +2,9 @@
  * (snake_case, Decimals serialized as strings), same convention as
  * `features/portfolio/types.ts`. */
 
+/** Strategy registration lives in `features/strategies` now — this feature
+ * only needs a narrower `StrategyType` union for its own form. */
 export type StrategyType = 'EMA_CROSSOVER' | 'RSI' | 'MACD'
-
-export interface CreateStrategyRequest {
-  name: string
-  description: string
-  symbol: string
-  strategy_type: StrategyType
-  parameters: Record<string, unknown>
-}
-
-export interface StrategyResponse {
-  id: string
-  user_id: string
-  name: string
-  description: string
-  symbol: string
-  status: string
-  version: number
-  strategy_type: string
-  parameters: Record<string, unknown>
-  created_at: string
-  updated_at: string
-}
 
 export interface RunBacktestRequest {
   period_start: string

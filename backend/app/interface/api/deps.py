@@ -65,6 +65,7 @@ from app.application.use_cases.roles.manage_role_permissions import (
 from app.application.use_cases.roles.resolve_user_permissions import (
     ResolveUserPermissionsUseCase,
 )
+from app.application.use_cases.strategies.analyze_patterns import AnalyzePatternsUseCase
 from app.application.use_cases.strategies.create_strategy import CreateStrategyUseCase
 from app.application.use_cases.strategies.get_strategy import GetStrategyUseCase
 from app.application.use_cases.strategies.list_signals import ListSignalsUseCase
@@ -413,6 +414,12 @@ def get_update_strategy_status_use_case(
     strategy_engine: StrategyEngine = Depends(get_strategy_engine),
 ) -> UpdateStrategyStatusUseCase:
     return UpdateStrategyStatusUseCase(uow_factory, strategy_engine)
+
+
+def get_analyze_patterns_use_case(
+    market_data: IMarketDataReader = Depends(get_market_data_reader),
+) -> AnalyzePatternsUseCase:
+    return AnalyzePatternsUseCase(market_data)
 
 
 # --- Backtesting (Phase 10) ---------------------------------------------------------------------

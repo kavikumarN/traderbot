@@ -11,7 +11,8 @@ import {
   Typography,
 } from '@mui/material'
 import { getApiErrorMessage } from '@/shared/types/api'
-import { useCreateStrategyMutation, useRunBacktestMutation } from '../backtestingApi'
+import { useCreateStrategyMutation } from '@/features/strategies/strategiesApi'
+import { useRunBacktestMutation } from '../backtestingApi'
 import type { Backtest, StrategyType } from '../types'
 
 const INTERVAL_OPTIONS = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
