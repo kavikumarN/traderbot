@@ -15,7 +15,7 @@ build: ## Build both images locally, tagged :local
 # --- Minikube -----------------------------------------------------------------
 
 minikube-start: ## Start Minikube with enough headroom for the whole stack + monitoring, and the addons the manifests assume
-	minikube start --cpus=4 --memory=6000mb
+	minikube start --cpus=4 --memory=6000mb --driver=docker
 	minikube addons enable ingress
 	minikube addons enable metrics-server
 
