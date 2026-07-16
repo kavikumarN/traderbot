@@ -23,6 +23,11 @@ export default function StrategiesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [initialValues, setInitialValues] = useState<CreateStrategyInitialValues | undefined>(undefined)
+  // Bumped every time `initialValues` changes so `CreateStrategyDialog` is
+  // given a fresh `key` — it seeds its form fields from `initialValues` only
+  // in its own `useState` initializer, which React does not re-run just
+  // because a prop changed on an already-mounted component.
+  const [dialogInstance, setDialogInstance] = useState(0)
 
   const { data: strategies, isLoading, isError, error } = useListStrategiesQuery(undefined, {
     pollingInterval: POLL_INTERVAL_MS,
@@ -36,6 +41,7 @@ export default function StrategiesPage() {
     const handoff = (location.state as { aiSuggestion?: AiSuggestionHandoff } | null)?.aiSuggestion
     if (handoff) {
       setInitialValues({ symbol: handoff.symbol, strategyType: handoff.strategyType, parameters: handoff.parameters })
+      setDialogInstance((n) => n + 1)
       setDialogOpen(true)
       navigate(location.pathname, { replace: true, state: null })
     }
@@ -57,6 +63,7 @@ export default function StrategiesPage() {
           startIcon={<AddRoundedIcon />}
           onClick={() => {
             setInitialValues(undefined)
+            setDialogInstance((n) => n + 1)
             setDialogOpen(true)
           }}
         >
@@ -80,6 +87,7 @@ export default function StrategiesPage() {
       ) : null}
 
       <CreateStrategyDialog
+        key={dialogInstance}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         initialValues={initialValues}

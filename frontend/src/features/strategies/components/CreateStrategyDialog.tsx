@@ -56,12 +56,6 @@ export function CreateStrategyDialog({ open, onClose, onCreated, initialValues }
   const [analyze, { data: analysis, isLoading: isAnalyzing, error: analyzeError }] = useAnalyzePatternsMutation()
 
   useEffect(() => {
-    if (open && initialValues?.strategyType) {
-      setTab('manual')
-    }
-  }, [open, initialValues])
-
-  useEffect(() => {
     if (!strategyType && strategyTypes && strategyTypes.length > 0) {
       setStrategyType(strategyTypes[0].strategy_type)
     }

@@ -26,13 +26,19 @@ interface CandlestickChartProps {
   patterns: PatternMatch[]
 }
 
-function CandleShape(props: {
+interface ShapeProps {
   x?: number
   y?: number
   width?: number
   height?: number
   payload?: ChartDatum
-}) {
+}
+
+// Recharts' `shape` prop typing varies across chart types and doesn't
+// export a single reusable "custom shape" interface, so these render
+// functions take loosely-typed props (the well-known pragmatic pattern for
+// Recharts custom shapes) rather than fighting its generics.
+function CandleShape(props: ShapeProps) {
   const { x = 0, y = 0, width = 0, height = 0, payload } = props
   if (!payload || height <= 0) return null
 
@@ -137,9 +143,9 @@ export function CandlestickChart({ candles, patterns }: CandlestickChartProps) {
               color: terminal.text,
             }}
             labelStyle={{ color: terminal.amber }}
-            formatter={(value: unknown, name: string) => {
+            formatter={(value: unknown, name: unknown) => {
               if (name === 'range' && Array.isArray(value)) return [`${value[0]} - ${value[1]}`, 'Range']
-              return [String(value), name]
+              return [String(value), String(name ?? '')]
             }}
           />
           <Bar dataKey="range" shape={CandleShape} isAnimationActive={false} />

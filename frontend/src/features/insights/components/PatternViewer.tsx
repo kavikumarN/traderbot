@@ -10,6 +10,11 @@ import { PatternsTable } from './PatternsTable'
 import { SuggestionPanel } from './SuggestionPanel'
 import { TerminalPanel } from './TerminalPanel'
 
+// Ranks intervals from lowest to highest timeframe — used to pick the
+// "primary" (highest-timeframe) chart regardless of the order the user
+// happened to click intervals in.
+const INTERVAL_RANK: Record<string, number> = { '5m': 0, '15m': 1, '1h': 2, '4h': 3, '1d': 4 }
+
 export function PatternViewer() {
   const navigate = useNavigate()
   const [symbol, setSymbol] = useState('BTCUSDT')
@@ -20,7 +25,9 @@ export function PatternViewer() {
     analyze({ symbol, intervals })
   }
 
-  const primaryInterval = data?.intervals[data.intervals.length - 1]
+  const primaryInterval = data
+    ? [...data.intervals].sort((a, b) => (INTERVAL_RANK[a.interval] ?? 0) - (INTERVAL_RANK[b.interval] ?? 0)).at(-1)
+    : undefined
 
   return (
     <Box sx={{ bgcolor: terminal.bg, p: 2, borderRadius: '2px' }}>
