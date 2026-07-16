@@ -14,8 +14,10 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.application.use_cases.news.list_news import ListNewsUseCase
 from app.core.config import Settings
 from app.interface.api.deps import (
+    get_list_news_use_case,
     get_market_data_reader,
     get_password_hasher,
     get_settings_dep,
@@ -26,6 +28,7 @@ from app.interface.api.deps import (
 )
 from app.main import create_app
 from tests.fakes.fake_exchange_client import FakeExchangeClient
+from tests.fakes.fake_news_feed_client import FakeNewsFeedClient
 from tests.fakes.fake_security import FakePasswordHasher, FakeTokenBlacklist, FakeTokenService
 from tests.fakes.fake_unit_of_work import FakeUnitOfWork, make_uow_factory
 
@@ -53,9 +56,18 @@ def fake_market_data_reader() -> FakeExchangeClient:
     return FakeExchangeClient()
 
 
+@pytest.fixture
+def fake_news_feed_client() -> FakeNewsFeedClient:
+    """Exposed as a fixture (rather than baked silently into `client`) so
+    tests that need articles set `.responses[url]` before requesting."""
+    return FakeNewsFeedClient()
+
+
 @pytest_asyncio.fixture
 async def client(
-    test_uow: FakeUnitOfWork, fake_market_data_reader: FakeExchangeClient
+    test_uow: FakeUnitOfWork,
+    fake_market_data_reader: FakeExchangeClient,
+    fake_news_feed_client: FakeNewsFeedClient,
 ) -> AsyncIterator[AsyncClient]:
     app = create_app(settings=make_test_settings())
 
@@ -78,6 +90,10 @@ async def client(
     # Same reasoning: `get_market_data_reader`'s real chain reads
     # `request.app.state.trading_mode`, which the lifespan never set here.
     app.dependency_overrides[get_market_data_reader] = lambda: fake_market_data_reader
+    # `get_list_news_use_case` otherwise returns the real process-wide
+    # singleton (real HTTP fetches against real news sites) — tests get a
+    # fresh `ListNewsUseCase` per test wrapping the fake feed client instead.
+    app.dependency_overrides[get_list_news_use_case] = lambda: ListNewsUseCase(fake_news_feed_client)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as async_client:

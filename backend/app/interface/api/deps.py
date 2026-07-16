@@ -37,6 +37,7 @@ from app.application.use_cases.auth.register_user import RegisterUserUseCase
 from app.application.use_cases.backtesting.get_backtest import GetBacktestUseCase
 from app.application.use_cases.backtesting.list_backtests import ListBacktestsUseCase
 from app.application.use_cases.backtesting.run_backtest import RunBacktestUseCase
+from app.application.use_cases.news.list_news import ListNewsUseCase
 from app.application.use_cases.portfolio.get_performance import GetPerformanceUseCase
 from app.application.use_cases.portfolio.get_summary import GetPortfolioSummaryUseCase
 from app.application.use_cases.portfolio.list_positions import ListPositionsUseCase
@@ -93,6 +94,7 @@ from app.infrastructure.binance.adapter import BinanceExchangeAdapter
 from app.infrastructure.binance.http_client import BinanceHttpClient
 from app.infrastructure.binance.retry import RetryPolicy
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from app.infrastructure.news.httpx_news_feed_client import HttpxNewsFeedClient
 from app.infrastructure.paper_trading.adapter import PaperTradingExchangeAdapter
 from app.interface.api.websocket_manager import WebSocketManager
 
@@ -448,6 +450,19 @@ def get_get_backtest_use_case(
     uow_factory: UnitOfWorkFactory = Depends(get_uow_factory),
 ) -> GetBacktestUseCase:
     return GetBacktestUseCase(uow_factory)
+
+
+# --- Insights: news (Phase 13) -------------------------------------------------------------------
+
+# `ListNewsUseCase` caches parsed feed results on the instance itself (see
+# its own docstring) — it must be a single long-lived object shared across
+# every request, not reconstructed per-request like the use cases above, so
+# it's built once here rather than behind a `Depends(...)` provider chain.
+_list_news_use_case = ListNewsUseCase(HttpxNewsFeedClient())
+
+
+def get_list_news_use_case() -> ListNewsUseCase:
+    return _list_news_use_case
 
 
 # --- Auth use cases --------------------------------------------------------------------------

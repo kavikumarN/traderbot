@@ -1,22 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, Box, Button, Stack, Typography } from '@mui/material'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner'
 import { getApiErrorMessage } from '@/shared/types/api'
-import { CreateStrategyDialog } from '../components/CreateStrategyDialog'
+import { CreateStrategyDialog, type CreateStrategyInitialValues } from '../components/CreateStrategyDialog'
 import { SignalsTable } from '../components/SignalsTable'
 import { StrategiesTable } from '../components/StrategiesTable'
 import { useListStrategiesQuery } from '../strategiesApi'
 
 const POLL_INTERVAL_MS = 30_000
 
+interface AiSuggestionHandoff {
+  symbol: string
+  strategyType: string
+  parameters: Record<string, unknown>
+}
+
 export default function StrategiesPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [initialValues, setInitialValues] = useState<CreateStrategyInitialValues | undefined>(undefined)
 
   const { data: strategies, isLoading, isError, error } = useListStrategiesQuery(undefined, {
     pollingInterval: POLL_INTERVAL_MS,
   })
+
+  // Hand-off from the Insights Pattern Viewer's "Apply Suggestion" button
+  // (see `features/insights/components/PatternViewer.tsx`) — open straight
+  // into a pre-filled Register-a-Strategy dialog instead of making the user
+  // re-enter what the AI Strategy Builder already worked out.
+  useEffect(() => {
+    const handoff = (location.state as { aiSuggestion?: AiSuggestionHandoff } | null)?.aiSuggestion
+    if (handoff) {
+      setInitialValues({ symbol: handoff.symbol, strategyType: handoff.strategyType, parameters: handoff.parameters })
+      setDialogOpen(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.state, location.pathname, navigate])
 
   return (
     <Stack spacing={3}>
@@ -29,7 +52,14 @@ export default function StrategiesPage() {
             Register strategies, control their lifecycle, and review the signals they generate.
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="contained"
+          startIcon={<AddRoundedIcon />}
+          onClick={() => {
+            setInitialValues(undefined)
+            setDialogOpen(true)
+          }}
+        >
           New Strategy
         </Button>
       </Box>
@@ -52,6 +82,7 @@ export default function StrategiesPage() {
       <CreateStrategyDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
+        initialValues={initialValues}
         onCreated={(strategyId) => {
           setDialogOpen(false)
           setSelectedId(strategyId)

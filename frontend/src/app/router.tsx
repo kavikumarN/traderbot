@@ -6,6 +6,7 @@ import DashboardPage from '@/features/dashboard/pages/DashboardPage'
 import LoginPage from '@/features/auth/pages/LoginPage'
 import RegisterPage from '@/features/auth/pages/RegisterPage'
 import BacktestingPage from '@/features/backtesting/pages/BacktestingPage'
+import InsightsPage from '@/features/insights/pages/InsightsPage'
 import OrdersPage from '@/features/orders/pages/OrdersPage'
 import PortfolioPage from '@/features/portfolio/pages/PortfolioPage'
 import RiskPage from '@/features/risk/pages/RiskPage'
@@ -47,6 +48,7 @@ export function AppRouter() {
         <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/backtesting" element={<BacktestingPage />} />
         <Route path="/risk" element={<RiskPage />} />
+        <Route path="/insights" element={<InsightsPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

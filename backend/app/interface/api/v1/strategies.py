@@ -43,7 +43,7 @@ from app.interface.api.deps import (
     get_update_strategy_status_use_case,
     require_permission,
 )
-from app.interface.api.pattern_analysis_mappers import analysis_result_to_response
+from app.interface.api.pattern_analysis_mappers import analyze_patterns_output_to_response
 from app.interface.api.schemas.backtest import BacktestResponse, RunBacktestRequest
 from app.interface.api.schemas.pattern_analysis import AnalyzePatternsRequest, PatternAnalysisResponse
 from app.interface.api.schemas.strategy import (
@@ -119,8 +119,8 @@ async def analyze_patterns(
     body: AnalyzePatternsRequest,
     use_case: AnalyzePatternsUseCase = Depends(get_analyze_patterns_use_case),
 ) -> PatternAnalysisResponse:
-    result = await use_case.execute(AnalyzePatternsCommand(symbol=body.symbol, intervals=body.intervals))
-    return analysis_result_to_response(result)
+    output = await use_case.execute(AnalyzePatternsCommand(symbol=body.symbol, intervals=body.intervals))
+    return analyze_patterns_output_to_response(output)
 
 
 @router.get(

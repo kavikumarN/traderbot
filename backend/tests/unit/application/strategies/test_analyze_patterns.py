@@ -42,12 +42,13 @@ async def test_analyzes_a_single_interval() -> None:
     exchange.candles_result = _candles()
     use_case = AnalyzePatternsUseCase(exchange)
 
-    result = await use_case.execute(AnalyzePatternsCommand(symbol=_SYMBOL, intervals=[KlineInterval.ONE_HOUR]))
+    output = await use_case.execute(AnalyzePatternsCommand(symbol=_SYMBOL, intervals=[KlineInterval.ONE_HOUR]))
 
-    assert result.symbol == _SYMBOL
-    assert len(result.intervals) == 1
-    assert result.intervals[0].interval == KlineInterval.ONE_HOUR
-    assert result.intervals[0].candle_count == 40
+    assert output.analysis.symbol == _SYMBOL
+    assert len(output.analysis.intervals) == 1
+    assert output.analysis.intervals[0].interval == KlineInterval.ONE_HOUR
+    assert output.analysis.intervals[0].candle_count == 40
+    assert output.candles_by_interval[KlineInterval.ONE_HOUR] == _candles()
 
 
 async def test_analyzes_multiple_intervals() -> None:
@@ -55,12 +56,13 @@ async def test_analyzes_multiple_intervals() -> None:
     exchange.candles_result = _candles()
     use_case = AnalyzePatternsUseCase(exchange)
 
-    result = await use_case.execute(
+    output = await use_case.execute(
         AnalyzePatternsCommand(symbol=_SYMBOL, intervals=[KlineInterval.ONE_HOUR, KlineInterval.ONE_DAY])
     )
 
-    assert len(result.intervals) == 2
-    assert {a.interval for a in result.intervals} == {KlineInterval.ONE_HOUR, KlineInterval.ONE_DAY}
+    assert len(output.analysis.intervals) == 2
+    assert {a.interval for a in output.analysis.intervals} == {KlineInterval.ONE_HOUR, KlineInterval.ONE_DAY}
+    assert set(output.candles_by_interval.keys()) == {KlineInterval.ONE_HOUR, KlineInterval.ONE_DAY}
 
 
 async def test_rejects_empty_interval_list() -> None:

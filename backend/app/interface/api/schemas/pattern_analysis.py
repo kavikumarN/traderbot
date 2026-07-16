@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.domain.exchange.enums import KlineInterval
+from app.interface.api.schemas.market import CandleResponse
 
 
 class AnalyzePatternsRequest(BaseModel):
@@ -31,6 +32,7 @@ class IntervalAnalysisResponse(BaseModel):
     interval: str
     candle_count: int
     patterns: list[PatternMatchResponse]
+    candles: list[CandleResponse]
 
 
 class StrategySuggestionResponse(BaseModel):
