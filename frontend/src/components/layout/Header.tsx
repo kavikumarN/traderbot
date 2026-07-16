@@ -17,9 +17,11 @@ import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded'
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
+import { useLocation } from 'react-router-dom'
 import { useLogoutMutation } from '@/features/auth/authApi'
 import { useAuth } from '@/shared/hooks/useAuth'
 import { useThemeMode } from '@/shared/hooks/useThemeMode'
+import { navItems } from './navConfig'
 import { SIDEBAR_WIDTH } from './Sidebar'
 
 interface HeaderProps {
@@ -31,6 +33,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { mode, toggle } = useThemeMode()
   const [logout] = useLogoutMutation()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+  const location = useLocation()
+
+  const activeLabel =
+    navItems.find((item) => item.path && location.pathname.startsWith(item.path))?.label ?? 'Dashboard'
 
   const initials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}`.toUpperCase() : ''
 
@@ -53,7 +59,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </IconButton>
 
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }} className="flex-1">
-          Dashboard
+          {activeLabel}
         </Typography>
 
         <Tooltip title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>

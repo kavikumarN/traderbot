@@ -11,6 +11,7 @@ Redis, or PyJWT directly — only these provider functions do.
 from __future__ import annotations
 
 import httpx
+from binance_sdk_spot.spot import ConfigurationRestAPI, Spot
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
@@ -93,6 +94,7 @@ from app.domain.strategy.plugin_manager import PluginManager, default_plugin_man
 from app.infrastructure.binance.adapter import BinanceExchangeAdapter
 from app.infrastructure.binance.http_client import BinanceHttpClient
 from app.infrastructure.binance.retry import RetryPolicy
+from app.infrastructure.binance_sdk.market_data_client import BinanceSdkMarketDataClient
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from app.infrastructure.news.httpx_news_feed_client import HttpxNewsFeedClient
 from app.infrastructure.paper_trading.adapter import PaperTradingExchangeAdapter
@@ -184,9 +186,31 @@ def get_binance_http_client(
     )
 
 
+def get_binance_sdk_spot_client(settings: Settings = Depends(get_settings_dep)) -> Spot:
+    """The official Binance Python connector's Spot client
+    (https://developers.binance.com/en/docs/sdks-tools/connectors/python),
+    used only for public market-data reads — see `BinanceSdkMarketDataClient`.
+    Market data needs no signing, so a blank key/secret works fine when
+    Binance credentials aren't configured (e.g. paper-trading-only setups)."""
+    configuration = ConfigurationRestAPI(
+        api_key=settings.binance_api_key or "",
+        api_secret=settings.binance_api_secret.get_secret_value() if settings.binance_api_secret else "",
+        base_path=settings.binance_rest_base_url,
+    )
+    return Spot(config_rest_api=configuration)
+
+
+def get_binance_sdk_market_data_client(request: Request) -> BinanceSdkMarketDataClient:
+    """Built once at startup (see `app.main`) and reused across requests —
+    like `get_binance_httpx_client`, this wraps a pooled HTTP session that
+    shouldn't be rebuilt per request."""
+    return request.app.state.binance_sdk_market_data_client
+
+
 def get_exchange_client(
     trading_mode: str = Depends(get_trading_mode),
     http: BinanceHttpClient = Depends(get_binance_http_client),
+    sdk_market_data: BinanceSdkMarketDataClient = Depends(get_binance_sdk_market_data_client),
     paper_trading_adapter: PaperTradingExchangeAdapter = Depends(get_paper_trading_adapter),
 ) -> ExchangeClient:
     """The full Exchange Adapter Pattern port. Most routes should prefer
@@ -196,10 +220,14 @@ def get_exchange_client(
     singleton instead of building a fresh `BinanceExchangeAdapter` — no order
     placed through this dependency ever reaches Binance while paper trading
     is on, regardless of which route pulled it in.
+
+    Market data (candles/ticker/order book/trades/exchange info) is read via
+    the official Binance SDK (`sdk_market_data`); account reads and order
+    placement still go through the hand-rolled, HMAC-signed `http` client.
     """
     if trading_mode == "paper":
         return paper_trading_adapter
-    return BinanceExchangeAdapter(http)
+    return BinanceExchangeAdapter(http, market_data=sdk_market_data)
 
 
 def get_market_data_reader(

@@ -46,6 +46,7 @@ class RunBacktestCommand:
     interval: KlineInterval
     initial_balance: Decimal
     commission_rate: Decimal
+    slippage_bps: Decimal = Decimal(0)
 
 
 class RunBacktestUseCase:
@@ -84,6 +85,7 @@ class RunBacktestUseCase:
                 initial_balance=command.initial_balance,
                 commission_rate=command.commission_rate,
                 periods_per_year=PERIODS_PER_YEAR[command.interval],
+                slippage_bps=command.slippage_bps,
             )
 
             now = datetime.now(UTC)
@@ -190,6 +192,21 @@ def _result_to_dict(symbol: str, interval: KlineInterval, result: BacktestResult
     return {
         "symbol": symbol,
         "interval": interval.value,
+        "metrics": {
+            "sortino_ratio": str(result.sortino_ratio) if result.sortino_ratio is not None else None,
+            "calmar_ratio": str(result.calmar_ratio) if result.calmar_ratio is not None else None,
+            "cagr_pct": str(result.cagr_pct) if result.cagr_pct is not None else None,
+            "avg_drawdown_pct": str(result.avg_drawdown_pct),
+            "profit_factor": str(result.profit_factor) if result.profit_factor is not None else None,
+            "expectancy": str(result.trade_stats.expectancy),
+            "avg_win": str(result.trade_stats.avg_win),
+            "avg_loss": str(result.trade_stats.avg_loss),
+            "largest_win": str(result.trade_stats.largest_win),
+            "largest_loss": str(result.trade_stats.largest_loss),
+            "max_consecutive_wins": result.trade_stats.max_consecutive_wins,
+            "max_consecutive_losses": result.trade_stats.max_consecutive_losses,
+            "exposure_pct": str(result.exposure_pct),
+        },
         "trade_log": [
             {
                 "executed_at": fill.executed_at.isoformat(),

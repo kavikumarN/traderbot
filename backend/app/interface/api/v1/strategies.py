@@ -195,6 +195,7 @@ async def run_backtest(
             interval=body.interval,
             initial_balance=body.initial_balance,
             commission_rate=body.commission_rate,
+            slippage_bps=body.slippage_bps,
         )
     )
     return backtest_to_response(backtest)

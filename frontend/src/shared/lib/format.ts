@@ -30,9 +30,13 @@ export function formatPercent(value: string | number | null): string {
   return percentFormatter.format(Number(value))
 }
 
-export function formatSharpe(value: string | null): string {
+export function formatRatio(value: string | null): string {
   if (value === null) return '—'
   return Number(value).toFixed(2)
+}
+
+export function formatSharpe(value: string | null): string {
+  return formatRatio(value)
 }
 
 export function isNonNegative(value: string): boolean {

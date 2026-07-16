@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, ClassVar
 
-from app.domain.exchange.enums import OrderSide
+from app.domain.exchange.enums import OrderSide, OrderType
 from app.domain.exchange.models.market_data import Candle, Ticker
 from app.domain.strategy.exceptions import InvalidStrategyConfigError
 
@@ -53,12 +53,25 @@ class StrategyContext:
 class SignalProposal:
     """What a plugin hands back to the engine — deliberately smaller than
     the persisted `Signal` aggregate (no id, no strategy_id, no status):
-    those are `SignalManager`'s concern, not the plugin's."""
+    those are `SignalManager`'s concern, not the plugin's.
+
+    `order_type`/`stop_loss_price`/`take_profit_price`/`trailing_stop_pct`
+    are consumed by `BacktestEngine` (see `domain.backtesting.analytics`)
+    for realistic order simulation. `SignalManager`/`TradingService` (live
+    and paper trading) don't read them yet — every live signal still places
+    a market order regardless of what's proposed here, same as before this
+    field set existed. That's a known, deliberate gap: wiring live trading
+    to actually place limit/stop orders from these fields is separate,
+    not-yet-scheduled work, not an oversight."""
 
     side: OrderSide
     quantity: Decimal
     target_price: Decimal | None = None
     reason: str = ""
+    order_type: OrderType = OrderType.MARKET
+    stop_loss_price: Decimal | None = None
+    take_profit_price: Decimal | None = None
+    trailing_stop_pct: Decimal | None = None
 
 
 class StrategyPlugin(ABC):
@@ -104,12 +117,36 @@ class StrategyPlugin(ABC):
 
     # --- helpers for subclasses ------------------------------------------------------------
 
-    def _emit(self, side: OrderSide, *, target_price: Decimal | None = None, reason: str = "") -> None:
+    def _emit(
+        self,
+        side: OrderSide,
+        *,
+        target_price: Decimal | None = None,
+        reason: str = "",
+        order_type: OrderType = OrderType.MARKET,
+    ) -> None:
         """Queues a signal for the next `generate_signal()` call. Replaces
         (doesn't accumulate) any signal already pending — a plugin only
-        ever wants to act on its most current read of the market."""
+        ever wants to act on its most current read of the market.
+
+        Every plugin gets opt-in stop-loss/take-profit/trailing-stop bracket
+        orders for free here, driven by `parameters["stop_loss_pct"]` /
+        `"take_profit_pct"` / `"trailing_stop_pct"` (all optional — a plugin
+        that never sets them behaves exactly as before this existed). Prices
+        are computed off `target_price` since that's what `BacktestEngine`
+        actually fills a market order at; a plugin with no `target_price`
+        (shouldn't happen among the built-ins, but is a valid `SignalProposal`
+        shape) simply gets no brackets, since there's no entry price to
+        offset them from."""
         self._pending_signal = SignalProposal(
-            side=side, quantity=self._quantity(), target_price=target_price, reason=reason
+            side=side,
+            quantity=self._quantity(),
+            target_price=target_price,
+            reason=reason,
+            order_type=order_type,
+            stop_loss_price=self._bracket_price(target_price, side, "stop_loss_pct", favorable=False),
+            take_profit_price=self._bracket_price(target_price, side, "take_profit_pct", favorable=True),
+            trailing_stop_pct=self._optional_positive_decimal("trailing_stop_pct"),
         )
 
     def _drain_pending_signal(self) -> SignalProposal | None:
@@ -131,3 +168,28 @@ class StrategyPlugin(ABC):
         if quantity <= 0:
             raise InvalidStrategyConfigError(self.strategy_type, "parameters.quantity must be positive")
         return quantity
+
+    def _bracket_price(
+        self, entry_price: Decimal | None, side: OrderSide, parameter_key: str, *, favorable: bool
+    ) -> Decimal | None:
+        """`favorable=False` (stop-loss) sits on the losing side of a fresh
+        position; `favorable=True` (take-profit) on the winning side — which
+        is *below* vs *above* the entry price depends on whether this is a
+        long (`BUY`) or short (`SELL`) entry."""
+        offset_pct = self._optional_positive_decimal(parameter_key)
+        if offset_pct is None or entry_price is None:
+            return None
+        below_entry = (side == OrderSide.BUY) != favorable
+        return entry_price * (Decimal(1) - offset_pct) if below_entry else entry_price * (Decimal(1) + offset_pct)
+
+    def _optional_positive_decimal(self, key: str) -> Decimal | None:
+        raw = self.context.parameters.get(key)
+        if raw is None:
+            return None
+        try:
+            value = Decimal(str(raw))
+        except Exception as exc:
+            raise InvalidStrategyConfigError(self.strategy_type, f"parameters.{key} must be numeric") from exc
+        if value <= 0:
+            raise InvalidStrategyConfigError(self.strategy_type, f"parameters.{key} must be positive")
+        return value

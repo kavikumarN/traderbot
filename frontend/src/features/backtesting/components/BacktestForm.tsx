@@ -35,6 +35,10 @@ export function BacktestForm({ onResult }: BacktestFormProps) {
   const [periodEnd, setPeriodEnd] = useState(defaultDateTimeLocal(0))
   const [initialBalance, setInitialBalance] = useState('10000')
   const [commissionRate, setCommissionRate] = useState('0.001')
+  const [slippageBps, setSlippageBps] = useState('0')
+  const [stopLossPct, setStopLossPct] = useState('')
+  const [takeProfitPct, setTakeProfitPct] = useState('')
+  const [trailingStopPct, setTrailingStopPct] = useState('')
   const [quantity, setQuantity] = useState('0.01')
   const [fastPeriod, setFastPeriod] = useState('12')
   const [slowPeriod, setSlowPeriod] = useState('26')
@@ -49,16 +53,29 @@ export function BacktestForm({ onResult }: BacktestFormProps) {
 
   const isSubmitting = isCreatingStrategy || isRunning
 
+  // Optional bracket-order parameters (`StrategyPlugin._emit` reads these
+  // as fractions, e.g. "0.02" = 2%) — omitted entirely when left blank
+  // rather than sent as "0", since the backend rejects a zero/non-positive
+  // bracket percentage as invalid config, not "no bracket".
+  function bracketParameters(): Record<string, unknown> {
+    const params: Record<string, unknown> = {}
+    if (stopLossPct) params.stop_loss_pct = stopLossPct
+    if (takeProfitPct) params.take_profit_pct = takeProfitPct
+    if (trailingStopPct) params.trailing_stop_pct = trailingStopPct
+    return params
+  }
+
   function parametersForStrategyType(): Record<string, unknown> {
     switch (strategyType) {
       case 'EMA_CROSSOVER':
-        return { fast_period: Number(fastPeriod), slow_period: Number(slowPeriod), quantity }
+        return { fast_period: Number(fastPeriod), slow_period: Number(slowPeriod), quantity, ...bracketParameters() }
       case 'RSI':
         return {
           period: Number(rsiPeriod),
           oversold: Number(oversold),
           overbought: Number(overbought),
           quantity,
+          ...bracketParameters(),
         }
       case 'MACD':
         return {
@@ -66,9 +83,10 @@ export function BacktestForm({ onResult }: BacktestFormProps) {
           slow_period: Number(slowPeriod),
           signal_period: Number(signalPeriod),
           quantity,
+          ...bracketParameters(),
         }
       default:
-        return { quantity }
+        return { quantity, ...bracketParameters() }
     }
   }
 
@@ -92,6 +110,7 @@ export function BacktestForm({ onResult }: BacktestFormProps) {
           interval,
           initial_balance: initialBalance,
           commission_rate: commissionRate,
+          slippage_bps: slippageBps,
         },
       }).unwrap()
 
@@ -251,6 +270,41 @@ export function BacktestForm({ onResult }: BacktestFormProps) {
                 label="Commission Rate"
                 value={commissionRate}
                 onChange={(e) => setCommissionRate(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Slippage (bps)"
+                type="number"
+                value={slippageBps}
+                onChange={(e) => setSlippageBps(e.target.value)}
+                helperText="Worsens every market-style fill by this many basis points"
+                fullWidth
+              />
+            </Stack>
+
+            <Typography variant="subtitle2" color="textSecondary">
+              Bracket orders (optional)
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Stop Loss %"
+                value={stopLossPct}
+                onChange={(e) => setStopLossPct(e.target.value)}
+                helperText="e.g. 0.02 for 2%"
+                fullWidth
+              />
+              <TextField
+                label="Take Profit %"
+                value={takeProfitPct}
+                onChange={(e) => setTakeProfitPct(e.target.value)}
+                helperText="e.g. 0.05 for 5%"
+                fullWidth
+              />
+              <TextField
+                label="Trailing Stop %"
+                value={trailingStopPct}
+                onChange={(e) => setTrailingStopPct(e.target.value)}
+                helperText="Replaces Stop Loss % if set"
                 fullWidth
               />
             </Stack>

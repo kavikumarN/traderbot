@@ -17,8 +17,9 @@ dependencies = [
   "argon2-cffi>=23.1.0,<24.0.0",
   "python-multipart>=0.0.12,<0.1.0",
   "httpx>=0.27.2,<0.28.0",
-  "websockets>=13.1,<14.0",
+  "websockets>=15.0.1,<16.0.0",
   "prometheus-fastapi-instrumentator>=7.0.0,<8.0.0",
+  "binance-sdk-spot>=10.0.0,<11.0.0",
 ]
 
 [project.optional-dependencies]

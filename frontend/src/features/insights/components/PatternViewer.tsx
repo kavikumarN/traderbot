@@ -20,14 +20,24 @@ export function PatternViewer() {
   const [symbol, setSymbol] = useState('BTCUSDT')
   const [intervals, setIntervals] = useState<string[]>(['15m', '1h', '1d'])
   const [analyze, { data, isLoading, error }] = useAnalyzePatternsMutation()
+  const [selectedInterval, setSelectedInterval] = useState<string | undefined>(undefined)
 
   function handleAnalyze() {
+    setSelectedInterval(undefined)
     analyze({ symbol, intervals })
   }
 
   const primaryInterval = data
     ? [...data.intervals].sort((a, b) => (INTERVAL_RANK[a.interval] ?? 0) - (INTERVAL_RANK[b.interval] ?? 0)).at(-1)
     : undefined
+
+  // Most detected patterns live on the lower-timeframe intervals (far more
+  // candles → far more matches), but the chart used to always show the
+  // highest-timeframe interval regardless — so most rows in "Detected
+  // Patterns" had nothing to point at on the chart. `activeInterval` is
+  // switchable (via the tabs below) and defaults to whichever interval the
+  // user picked, falling back to `primaryInterval` after a fresh analysis.
+  const activeInterval = data?.intervals.find((i) => i.interval === selectedInterval) ?? primaryInterval
 
   return (
     <Box sx={{ bgcolor: terminal.bg, p: 2, borderRadius: '2px' }}>
@@ -57,16 +67,39 @@ export function PatternViewer() {
       {data ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 2 }}>
           <TerminalPanel
-            title={`${data.symbol} — ${primaryInterval?.interval ?? ''}`}
+            title={`${data.symbol} — ${activeInterval?.interval ?? ''}`}
             right={
               <Typography sx={{ fontFamily: terminalFont, fontSize: 10, color: terminal.textDim }}>
-                {primaryInterval?.candle_count ?? 0} CANDLES
+                {activeInterval?.candle_count ?? 0} CANDLES · {activeInterval?.patterns.length ?? 0} PATTERNS
               </Typography>
             }
           >
+            <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
+              {data.intervals.map((interval) => {
+                const selected = interval.interval === activeInterval?.interval
+                return (
+                  <Box
+                    key={interval.interval}
+                    onClick={() => setSelectedInterval(interval.interval)}
+                    sx={{
+                      cursor: 'pointer',
+                      px: 1,
+                      py: 0.5,
+                      fontFamily: terminalFont,
+                      fontSize: 11,
+                      border: `1px solid ${selected ? terminal.amber : terminal.border}`,
+                      color: selected ? terminal.amber : terminal.textDim,
+                      userSelect: 'none',
+                    }}
+                  >
+                    {interval.interval} ({interval.patterns.length})
+                  </Box>
+                )
+              })}
+            </Box>
             <CandlestickChart
-              candles={primaryInterval?.candles ?? []}
-              patterns={primaryInterval?.patterns ?? []}
+              candles={activeInterval?.candles ?? []}
+              patterns={activeInterval?.patterns ?? []}
             />
           </TerminalPanel>
 
@@ -91,7 +124,11 @@ export function PatternViewer() {
             ) : null}
 
             <TerminalPanel title="Detected Patterns">
-              <PatternsTable intervals={data.intervals} />
+              <PatternsTable
+                intervals={data.intervals}
+                activeInterval={activeInterval?.interval}
+                onSelectInterval={setSelectedInterval}
+              />
             </TerminalPanel>
           </Box>
         </Box>

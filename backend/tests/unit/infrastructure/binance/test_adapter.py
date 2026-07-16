@@ -110,3 +110,21 @@ async def test_adapter_exposes_the_narrow_clients_for_direct_use() -> None:
     # (an IMarketDataReader) instead of the full ExchangeClient.
     ticker = await adapter.market_data.get_ticker("BTCUSDT")
     assert ticker.symbol == "BTCUSDT"
+
+
+@pytest.mark.asyncio
+async def test_adapter_accepts_an_injected_market_data_reader() -> None:
+    """A caller (e.g. `deps.get_exchange_client`) may swap in a different
+    `IMarketDataReader` implementation — such as `BinanceSdkMarketDataClient`,
+    backed by Binance's official connector — without touching account reads
+    or order placement, which always go through `http`."""
+    http = FakeBinanceHttpClient({"/api/v3/account": {"balances": []}})
+
+    class StubMarketDataReader:
+        async def get_ticker(self, symbol: str):
+            return "stubbed"
+
+    adapter = BinanceExchangeAdapter(http, market_data=StubMarketDataReader())
+
+    assert await adapter.market_data.get_ticker("BTCUSDT") == "stubbed"
+    assert await adapter.get_balances() == []

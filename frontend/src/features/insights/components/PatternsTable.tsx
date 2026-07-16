@@ -2,7 +2,13 @@ import { Box, Chip, Typography } from '@mui/material'
 import { signalColor, terminal, terminalFont } from '../terminal'
 import type { IntervalAnalysis } from '../types'
 
-export function PatternsTable({ intervals }: { intervals: IntervalAnalysis[] }) {
+interface PatternsTableProps {
+  intervals: IntervalAnalysis[]
+  activeInterval?: string
+  onSelectInterval?: (interval: string) => void
+}
+
+export function PatternsTable({ intervals, activeInterval, onSelectInterval }: PatternsTableProps) {
   const rows = intervals.flatMap((interval) =>
     interval.patterns.map((pattern) => ({ interval: interval.interval, pattern }))
   )
@@ -16,10 +22,11 @@ export function PatternsTable({ intervals }: { intervals: IntervalAnalysis[] }) 
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 360, overflowY: 'auto' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 460, overflowY: 'auto' }}>
       {rows.map(({ interval, pattern }, i) => (
         <Box
           key={`${interval}-${pattern.name}-${pattern.at}-${i}`}
+          onClick={onSelectInterval ? () => onSelectInterval(interval) : undefined}
           sx={{
             display: 'grid',
             gridTemplateColumns: '52px 1fr 90px 60px',
@@ -28,6 +35,8 @@ export function PatternsTable({ intervals }: { intervals: IntervalAnalysis[] }) 
             px: 1,
             py: 0.5,
             borderBottom: `1px solid ${terminal.border}`,
+            cursor: onSelectInterval ? 'pointer' : 'default',
+            bgcolor: interval === activeInterval ? terminal.panelAlt : 'transparent',
           }}
         >
           <Chip

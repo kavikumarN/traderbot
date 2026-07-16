@@ -18,6 +18,7 @@ from app.domain.exchange.models.exchange_info import ExchangeInfo
 from app.domain.exchange.models.market_data import Candle, OrderBookSnapshot, Ticker, Trade
 from app.domain.exchange.models.requests import PlaceOrderRequest
 from app.domain.exchange.ports.exchange_client import ExchangeClient
+from app.domain.exchange.ports.market_data_reader import IMarketDataReader
 from app.infrastructure.binance.http_client import BinanceHttpClient
 from app.infrastructure.binance.rest.account_client import BinanceAccountClient
 from app.infrastructure.binance.rest.market_data_client import BinanceMarketDataClient
@@ -25,8 +26,15 @@ from app.infrastructure.binance.rest.order_client import BinanceOrderClient
 
 
 class BinanceExchangeAdapter(ExchangeClient):
-    def __init__(self, http: BinanceHttpClient) -> None:
-        self.market_data = BinanceMarketDataClient(http)
+    def __init__(self, http: BinanceHttpClient, *, market_data: IMarketDataReader | None = None) -> None:
+        """`market_data` defaults to the hand-rolled, HMAC-signed
+        `BinanceMarketDataClient`, but callers may inject a different
+        `IMarketDataReader` implementation (e.g. `BinanceSdkMarketDataClient`,
+        backed by Binance's official Python connector) — market data reads
+        are public/unauthenticated, so any implementation of the port is
+        interchangeable here without affecting account reads or order
+        placement, which always go through `http`."""
+        self.market_data = market_data or BinanceMarketDataClient(http)
         self.account = BinanceAccountClient(http)
         self.orders = BinanceOrderClient(http)
 

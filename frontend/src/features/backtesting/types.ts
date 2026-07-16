@@ -12,6 +12,7 @@ export interface RunBacktestRequest {
   interval: string
   initial_balance: string
   commission_rate: string
+  slippage_bps: string
 }
 
 export interface BacktestFill {
@@ -29,6 +30,22 @@ export interface BacktestFill {
 export interface BacktestEquityPoint {
   time: string
   equity: string
+}
+
+export interface BacktestMetrics {
+  sortino_ratio: string | null
+  calmar_ratio: string | null
+  cagr_pct: string | null
+  avg_drawdown_pct: string
+  profit_factor: string | null
+  expectancy: string
+  avg_win: string
+  avg_loss: string
+  largest_win: string
+  largest_loss: string
+  max_consecutive_wins: number
+  max_consecutive_losses: number
+  exposure_pct: string
 }
 
 export interface Backtest {
@@ -49,6 +66,7 @@ export interface Backtest {
   error_message: string | null
   created_at: string
   completed_at: string | null
+  metrics: BacktestMetrics
   trade_log: BacktestFill[]
   equity_curve: BacktestEquityPoint[]
 }

@@ -10,6 +10,7 @@ from app.domain.strategy.entities import Backtest
 from app.interface.api.schemas.backtest import (
     BacktestEquityPointResponse,
     BacktestFillResponse,
+    BacktestMetricsResponse,
     BacktestResponse,
 )
 
@@ -34,6 +35,7 @@ def backtest_to_response(backtest: Backtest) -> BacktestResponse:
         error_message=backtest.error_message,
         created_at=backtest.created_at,
         completed_at=backtest.completed_at,
+        metrics=BacktestMetricsResponse(**results.get("metrics", {})),
         trade_log=[BacktestFillResponse(**fill) for fill in results.get("trade_log", [])],
         equity_curve=[BacktestEquityPointResponse(**point) for point in results.get("equity_curve", [])],
     )

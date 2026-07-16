@@ -36,6 +36,7 @@ from app.domain.strategy import plugins as _strategy_plugins  # noqa: F401
 from app.infrastructure.binance.adapter import BinanceExchangeAdapter
 from app.infrastructure.binance.rate_limiter import InMemoryTokenBucketRateLimiter
 from app.infrastructure.binance.ws.binance_market_data_stream import BinanceMarketDataStream
+from app.infrastructure.binance_sdk.market_data_client import BinanceSdkMarketDataClient
 from app.infrastructure.cache.redis_client import create_redis_client
 from app.infrastructure.cache.redis_token_blacklist import RedisTokenBlacklist
 from app.infrastructure.db.session import create_engine, create_session_factory
@@ -47,7 +48,7 @@ from app.infrastructure.repositories.sqlalchemy_market_data_repository import (
 from app.infrastructure.security.argon2_password_hasher import Argon2PasswordHasher
 from app.infrastructure.security.jwt_token_service import JwtTokenService
 from app.interface.api import health
-from app.interface.api.deps import get_binance_http_client
+from app.interface.api.deps import get_binance_http_client, get_binance_sdk_spot_client
 from app.interface.api.errors import register_exception_handlers
 from app.interface.api.middleware import RequestIdMiddleware
 from app.interface.api.v1.router import api_v1_router
@@ -96,6 +97,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             }
         )
 
+        # Market data (candles/ticker/order book/trades/exchange info) is
+        # read via Binance's official Python connector
+        # (https://developers.binance.com/en/docs/sdks-tools/connectors/python)
+        # rather than the hand-rolled `BinanceMarketDataClient` above — one
+        # shared client, reused everywhere a `BinanceExchangeAdapter` is
+        # built below (paper trading's inner adapter, live trading mode).
+        app.state.binance_sdk_market_data_client = BinanceSdkMarketDataClient(
+            get_binance_sdk_spot_client(settings=settings)
+        )
+
         # Trading engine (Phase 6): `trading_mode` gates which `ExchangeClient`
         # `app.interface.api.deps.get_exchange_client` hands out. In "paper"
         # mode that's this one shared `PaperTradingExchangeAdapter` — it must
@@ -112,7 +123,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         settings=settings,
                         httpx_client=app.state.binance_http_client,
                         rate_limiter=app.state.binance_rate_limiter,
-                    )
+                    ),
+                    market_data=app.state.binance_sdk_market_data_client,
                 ),
                 starting_balances={"USDT": settings.paper_trading_starting_balance_usdt},
                 commission_rate=settings.paper_trading_commission_rate,
@@ -160,7 +172,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     settings=settings,
                     httpx_client=app.state.binance_http_client,
                     rate_limiter=app.state.binance_rate_limiter,
-                )
+                ),
+                market_data=app.state.binance_sdk_market_data_client,
             )
         )
         trading_service = TradingService(
