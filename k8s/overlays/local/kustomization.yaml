@@ -1,0 +1,42 @@
+# Minikube target: images are `minikube image load`ed from a local `docker
+# build`, never pulled from a registry — imagePullPolicy: Never makes that
+# explicit (IfNotPresent would still attempt a pull if the image were ever
+# evicted from the node's cache). Frontend replicas trimmed to 1 to go
+# easier on a laptop-sized cluster; bump back to the base's 2 freely if
+# your Minikube has the headroom.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/initContainers/0/imagePullPolicy
+        value: Never
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1

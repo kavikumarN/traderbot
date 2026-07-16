@@ -1,0 +1,70 @@
+name: traderbot
+
+services:
+  postgres:
+    # TimescaleDB ships as a Postgres extension on top of stock Postgres —
+    # this image is a drop-in replacement (same base, same wire protocol)
+    # so nothing else about the compose setup needs to change. Needed for
+    # the `candles` / `market_data` hypertables (see the Phase 4 migration).
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: traderbot
+      POSTGRES_PASSWORD: traderbot
+      POSTGRES_DB: traderbot
+    # TEMP: port published locally to run `alembic revision --autogenerate`
+    # from the host. Reverted before this change ships.
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traderbot -d traderbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: local
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: console
+      API_V1_PREFIX: /api/v1
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      DATABASE_URL: postgresql+asyncpg://traderbot:traderbot@postgres:5432/traderbot
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: local-dev-secret-do-not-use-in-production-change-me-please
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 15
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      PASSWORD_MIN_LENGTH: 10
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

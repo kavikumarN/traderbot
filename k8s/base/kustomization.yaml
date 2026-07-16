@@ -1,0 +1,18 @@
+# secret.example.yaml is intentionally NOT listed here — it's a template,
+# never applied directly. Create the real `backend-secrets` Secret out of
+# band first (`make k8s-secrets`, or see that file's own header comment)
+# before `kubectl apply -k` on this directory or an overlay of it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: traderbot
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres-statefulset.yaml
+  - redis-deployment.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - ingress.yaml
+  - hpa.yaml

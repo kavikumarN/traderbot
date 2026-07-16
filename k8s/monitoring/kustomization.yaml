@@ -1,0 +1,38 @@
+# Applied separately from k8s/base (`kubectl apply -k k8s/monitoring`) —
+# its own `monitoring` namespace, optional add-on, not a dependency of the
+# app itself starting up.
+#
+# config/ mirrors deploy/{loki,promtail}/*.yml and
+# deploy/grafana/dashboards/traderbot-overview.json (the Docker Compose
+# path's source of truth) — generated into ConfigMaps here via
+# configMapGenerator rather than hand-copied into a manifest's `data:`
+# block. They're physical copies, not symlinks: Kustomize's file loader
+# refuses to reference paths outside its own kustomization directory
+# (`kubectl apply -k` has no flag to relax this), so keeping one shared
+# `deploy/` source for both paths isn't possible here. These three files
+# rarely change; if you touch one, update its `deploy/` counterpart too.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - namespace.yaml
+  - prometheus-configmap.yaml
+  - prometheus-deployment.yaml
+  - grafana-datasource-configmap.yaml
+  - grafana-dashboard-provider.yaml
+  - grafana-deployment.yaml
+  - loki-deployment.yaml
+  - promtail-daemonset.yaml
+
+configMapGenerator:
+  - name: loki-config
+    files:
+      - loki-config.yml=config/loki-config.yml
+  - name: grafana-dashboard-traderbot
+    files:
+      - traderbot-overview.json=config/traderbot-overview.json
+  - name: promtail-config
+    files:
+      - promtail-config.yml=config/promtail-config.yml

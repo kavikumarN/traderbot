@@ -1,0 +1,40 @@
+/*
+ * Tailwind is imported without Preflight: MUI's <CssBaseline /> already
+ * normalizes the DOM (and is tuned to match MUI components), so pulling in
+ * Tailwind's own reset on top would fight it. We only take Tailwind's
+ * theme layer (design tokens -> CSS variables) and utilities layer.
+ * https://tailwindcss.com/docs/preflight#disabling-preflight
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* Dark mode is driven by MUI's palette mode, mirrored onto `<html class="dark">`
+   (see theme/ThemeModeProvider.tsx) — not by the OS `prefers-color-scheme`. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+/* A visible focus ring on elements MUI doesn't already style. */
+:focus-visible {
+  outline: 2px solid var(--mui-palette-primary-main, #1976d2);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

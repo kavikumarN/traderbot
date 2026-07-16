@@ -1,0 +1,55 @@
+# Kubernetes variant: reads /var/log/pods directly via a static file glob
+# (see promtail-config.yml for the Compose variant, which uses Docker SD
+# instead). Standard Grafana-documented DaemonSet pattern — one promtail
+# per node, each reading only its own node's /var/log/pods.
+#
+# Deliberately NOT using `kubernetes_sd_configs` (the more commonly
+# documented approach): verified against a real cluster that promtail
+# 3.2.1's Kubernetes service-discovery here reports zero targets at
+# runtime despite correct RBAC (`kubectl auth can-i` confirms `list`/
+# `watch` on pods), a reachable API server (a manual authenticated curl
+# from inside the pod returns real pod data), and a config that parses
+# and dry-runs cleanly (`promtail --dry-run` shows kubernetes_sd_configs
+# fully recognized with defaults filled in) — the discovery manager
+# itself just never populates. Rather than ship something that silently
+# ships zero logs, this glob-and-regex approach only depends on the
+# filesystem naming convention (`<namespace>_<pod>_<uid>/<container>/*.log`
+# — safe to split on `_` since K8s namespace/pod names never contain one)
+# and needs no SD subsystem, no RBAC, at all.
+#
+# pipeline_stages uses `docker: {}`, not `cri: {}` — confirmed the hard
+# way on Minikube's docker driver: /var/log/pods/**/*.log there is a
+# symlink into /var/lib/docker/containers (needs its own hostPath mount,
+# see promtail-daemonset.yaml) containing Docker's json-file log format
+# (`{"log":"...","stream":"stdout","time":"..."}` per line), not the CRI
+# log format `cri: {}` expects. A containerd-runtime cluster (most real
+# managed Kubernetes) would need `cri: {}` instead — this is the one place
+# in this repo that's genuinely Minikube/Docker-driver-specific rather
+# than portable to any cluster.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /run/promtail/positions.yaml
+
+clients:
+  - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: kubernetes-pods
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: kubernetes-pods
+          __path__: /var/log/pods/*/*/*.log
+    pipeline_stages:
+      - docker: {}
+      - regex:
+          source: filename
+          expression: '^/var/log/pods/(?P<namespace>[^_]+)_(?P<pod>[^_]+)_(?P<uid>[^_/]+)/(?P<container>[^/]+)/'
+      - labels:
+          namespace:
+          pod:
+          container:

@@ -1,0 +1,90 @@
+name: traderbot-prod
+
+# A single-host "prod-like" stack — no Kubernetes involved. The primary
+# deployment target for this phase is Minikube (see k8s/), but this is
+# useful on its own for a quick non-K8s deploy, and as a fast local sanity
+# check that both images build and talk to each other correctly before
+# testing the same topology in Kubernetes.
+#
+# Unlike the dev docker-compose.yml, nothing here bind-mounts source, runs
+# with --reload, or publishes Postgres to the host — the backend is only
+# reachable through the frontend's nginx reverse proxy, matching how a real
+# deployment is fronted by a single edge.
+#
+# `VITE_API_BASE_URL` is baked into the frontend image at *build* time (Vite
+# inlines `VITE_*` vars into the bundle — there's no runtime env for a
+# static SPA without extra tooling this phase doesn't add), so it must match
+# wherever this stack is actually reachable from a browser. The default
+# below assumes the frontend is published on host port 8080.
+
+services:
+  postgres:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: traderbot
+      POSTGRES_PASSWORD: traderbot
+      POSTGRES_DB: traderbot
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traderbot -d traderbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Secrets (JWT_SECRET_KEY, BINANCE_API_SECRET, ...) come from a real,
+    # gitignored backend/.env — see backend/.env.example for the full list.
+    # DATABASE_URL/REDIS_URL/ENVIRONMENT below override whatever that file
+    # sets for local dev, so they always point at these Compose services
+    # regardless of what's in .env.
+    env_file:
+      - ./backend/.env
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_FORMAT: json
+      CORS_ORIGINS: '["http://localhost:8080"]'
+      DATABASE_URL: postgresql+asyncpg://traderbot:traderbot@postgres:5432/traderbot
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        GIT_SHA: ${GIT_SHA:-unknown}
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:

@@ -1,0 +1,22 @@
+# Separate `monitoring` namespace from the app's `traderbot` namespace, so
+# the scrape target needs the cross-namespace Service FQDN.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: traderbot-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["backend.traderbot.svc.cluster.local:8000"]
+
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]

@@ -1,0 +1,61 @@
+# Placeholder overlay for whenever this moves off a single laptop onto a
+# real cluster — NOT wired to any actual cloud infrastructure by this
+# phase (there is none; Terraform here only targets Minikube — see
+# infra/terraform/). Swap `REGISTRY_PLACEHOLDER` for a real registry
+# (ghcr.io/<org>/traderbot-backend etc. — matches what
+# .github/workflows/cd.yml already pushes) before ever applying this.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: traderbot-backend:local
+    newName: REGISTRY_PLACEHOLDER/traderbot-backend
+    newTag: latest
+  - name: traderbot-frontend:local
+    newName: REGISTRY_PLACEHOLDER/traderbot-frontend
+    newTag: latest
+
+patches:
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/initContainers/0/imagePullPolicy
+        value: IfNotPresent
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+
+  - target:
+      kind: Ingress
+      name: traderbot
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: traderbot.example.com

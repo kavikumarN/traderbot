@@ -1,0 +1,18 @@
+# Applies when a build context is the repo root (e.g. `docker build -f
+# frontend/Dockerfile .` from CI) — backend/frontend each also have their
+# own .dockerignore for when the context is scoped to just that directory.
+.git/
+.claude/
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/.env
+**/.pytest_cache/
+**/.ruff_cache/
+**/htmlcov/
+k8s/
+infra/
+deploy/
+*.md

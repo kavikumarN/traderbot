@@ -1,0 +1,9 @@
+# Copy to local.tfvars (gitignored) and adjust if your setup differs from
+# the defaults — most people running plain `minikube start` won't need to
+# change anything here.
+kubeconfig_path = "~/.kube/config"
+kube_context    = "minikube"
+namespace       = "traderbot"
+name_prefix     = "tf-"
+backend_image   = "traderbot-backend:local"
+frontend_image  = "traderbot-frontend:local"

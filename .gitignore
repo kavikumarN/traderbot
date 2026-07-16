@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# Kubernetes secrets — the *.example.yaml templates under k8s/ are fine to
+# commit, a real filled-in copy never is.
+k8s/**/secret.yaml
+!k8s/**/secret.example.yaml
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code — settings.json (if ever added) is shared/committed,
+# settings.local.json and runtime lock files are personal/session-local.
+.claude/settings.local.json
+.claude/*.lock

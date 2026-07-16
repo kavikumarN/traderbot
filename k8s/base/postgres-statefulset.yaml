@@ -1,0 +1,79 @@
+# Same image as docker-compose.yml/docker-compose.prod.yml's postgres
+# service, for parity between the Compose and Kubernetes paths. In-cluster
+# rather than a managed service since Minikube has no managed-Postgres
+# equivalent to point at (see DEPLOYMENT.md for the production-cluster
+# caveat: RDS-style managed Postgres doesn't ship the Timescale extension —
+# a real cloud deployment needs either Timescale Cloud or a self-managed
+# instance, not a drop-in swap of this StatefulSet's image).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: traderbot
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: timescale/timescaledb:2.17.2-pg16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "traderbot"
+            - name: POSTGRES_DB
+              value: "traderbot"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "traderbot", "-d", "traderbot"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "traderbot", "-d", "traderbot"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: traderbot
+spec:
+  clusterIP: None # headless — StatefulSet pods get stable DNS (postgres-0.postgres...)
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

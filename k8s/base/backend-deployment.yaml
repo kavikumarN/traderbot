@@ -1,0 +1,74 @@
+# replicas: 1 is deliberate, not a placeholder — app/main.py's lifespan
+# starts the market-data engine and strategy engine as in-process
+# singletons (one asyncio.Task per active strategy, one shared WebSocket
+# connection per symbol) for the lifetime of the pod. A second replica
+# would run a second, independent copy of both — duplicate WebSocket
+# streams, duplicate strategy executions, duplicate order placement. Scaling
+# this safely needs those split out of the API process first (a separate
+# worker Deployment + leader election, or similar) — out of scope here.
+# See hpa.yaml, which caps maxReplicas at 1 for the same reason.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: traderbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      initContainers:
+        - name: migrate
+          image: traderbot-backend:local
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secrets
+      containers:
+        - name: backend
+          image: traderbot-backend:local
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secrets
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: traderbot
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8000
+      targetPort: 8000

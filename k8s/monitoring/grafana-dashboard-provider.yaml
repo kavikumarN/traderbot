@@ -1,0 +1,20 @@
+# Points Grafana at the mounted dashboard-json volume (see
+# grafana-deployment.yaml) — the actual dashboard is generated from
+# deploy/grafana/dashboards/traderbot-overview.json via kustomization.yaml's
+# configMapGenerator, not hand-copied into a manifest here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: traderbot
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /etc/grafana/provisioning/dashboards/json

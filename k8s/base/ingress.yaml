@@ -1,0 +1,25 @@
+# Single catch-all rule to the frontend Service — frontend/nginx.conf is
+# what actually splits `/api/`+`/health/` (proxied to backend) from
+# everything else (the SPA), so the Ingress doesn't need to duplicate that
+# routing. Requires `minikube addons enable ingress`; add `<minikube ip>
+# traderbot.local` to /etc/hosts (see DEPLOYMENT.md).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: traderbot
+  namespace: traderbot
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: traderbot.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

@@ -1,0 +1,70 @@
+name: CD
+
+# Builds and pushes both images to GHCR so they exist somewhere durable
+# once this moves past a single laptop. Does NOT deploy anywhere —
+# Minikube is local-only and a GitHub-hosted runner can't reach it; getting
+# a built image running is a manual `make minikube-load` / `make k8s-apply`
+# step (see DEPLOYMENT.md). A self-hosted runner with cluster access would
+# be the next step for a real cluster, not added here.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build + push (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: backend
+            context: ./backend
+          - image: frontend
+            context: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.image }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=ref,event=tag
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The frontend image bakes VITE_API_BASE_URL in at build time (see
+          # frontend/Dockerfile) — this build only produces a generic image
+          # with the Dockerfile's placeholder default; deploying it
+          # anywhere real means rebuilding with that environment's actual
+          # public origin, documented in DEPLOYMENT.md.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
