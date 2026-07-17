@@ -14,6 +14,12 @@ class RiskRuleType(StrEnum):
     MAX_OPEN_TRADES = "MAX_OPEN_TRADES"
     MAX_PORTFOLIO_EXPOSURE = "MAX_PORTFOLIO_EXPOSURE"
     RISK_PER_TRADE = "RISK_PER_TRADE"
+    # threshold = drawdown_pct that triggers de-risking;
+    # config.size_multiplier (default 0.5) = the size cut applied to
+    # `RiskEngine.suggest_position_size` once triggered. Unlike MAX_DRAWDOWN
+    # (which halts trading outright), this scales sizing down and stays in
+    # effect until a human re-arms it — see `RiskState.de_risked`.
+    DRAWDOWN_DERISK = "DRAWDOWN_DERISK"
 
 
 class CircuitBreakerState(StrEnum):

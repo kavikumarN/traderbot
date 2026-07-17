@@ -21,6 +21,7 @@ from app.application.use_cases.risk.delete_risk_rule import DeleteRiskRuleUseCas
 from app.application.use_cases.risk.get_risk_rule import GetRiskRuleUseCase
 from app.application.use_cases.risk.get_risk_state import GetRiskStateUseCase
 from app.application.use_cases.risk.list_risk_rules import ListRiskRulesUseCase
+from app.application.use_cases.risk.rearm_de_risk import RearmDeRiskUseCase
 from app.application.use_cases.risk.reset_circuit_breaker import ResetCircuitBreakerUseCase
 from app.application.use_cases.risk.set_emergency_stop import (
     SetEmergencyStopCommand,
@@ -36,6 +37,7 @@ from app.interface.api.deps import (
     get_get_risk_rule_use_case,
     get_get_risk_state_use_case,
     get_list_risk_rules_use_case,
+    get_rearm_de_risk_use_case,
     get_reset_circuit_breaker_use_case,
     get_set_emergency_stop_use_case,
     get_update_risk_rule_use_case,
@@ -190,6 +192,20 @@ async def set_emergency_stop(
 async def reset_circuit_breaker(
     user: User = Depends(get_current_user),
     use_case: ResetCircuitBreakerUseCase = Depends(get_reset_circuit_breaker_use_case),
+) -> RiskStateResponse:
+    state = await use_case.execute(user_id=user.id)
+    return risk_state_to_response(state)
+
+
+@router.post(
+    "/de-risk/rearm",
+    response_model=RiskStateResponse,
+    dependencies=[Depends(require_permission("risk:write"))],
+    summary="Manually restore full position sizing after a drawdown-triggered de-risk",
+)
+async def rearm_de_risk(
+    user: User = Depends(get_current_user),
+    use_case: RearmDeRiskUseCase = Depends(get_rearm_de_risk_use_case),
 ) -> RiskStateResponse:
     state = await use_case.execute(user_id=user.id)
     return risk_state_to_response(state)

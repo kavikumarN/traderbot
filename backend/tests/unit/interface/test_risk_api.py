@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
@@ -163,6 +164,34 @@ async def test_circuit_breaker_reset_requires_write_permission(
     response = await client.post("/api/v1/risk/circuit-breaker/reset", headers=headers)
 
     assert response.status_code == 403
+
+
+async def test_de_risk_rearm_requires_write_permission(client: AsyncClient, test_uow: FakeUnitOfWork) -> None:
+    headers = await _auth_headers(client, test_uow, codes={"risk:read"})
+
+    response = await client.post("/api/v1/risk/de-risk/rearm", headers=headers)
+
+    assert response.status_code == 403
+
+
+async def test_de_risk_rearm_clears_an_active_de_risk(client: AsyncClient, test_uow: FakeUnitOfWork) -> None:
+    headers = await _auth_headers(client, test_uow, codes={"risk:read", "risk:write"})
+    state_response = await client.get("/api/v1/risk/state", headers=headers)
+    user_id = state_response.json()["user_id"]
+
+    state = await test_uow.risk_state.get_for_user(uuid.UUID(user_id))
+    state.de_risked = True
+    state.de_risk_multiplier = Decimal("0.25")
+    state.de_risk_reason = "drawdown breach"
+    await test_uow.risk_state.upsert(state)
+
+    response = await client.post("/api/v1/risk/de-risk/rearm", headers=headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["de_risked"] is False
+    assert body["de_risk_multiplier"] == "1"
+    assert body["de_risk_reason"] is None
 
 
 async def test_position_size_preview_with_no_account_yet_returns_zero_quantity(

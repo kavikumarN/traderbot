@@ -24,6 +24,7 @@ const RULE_TYPES: RiskRuleType[] = [
   'MAX_OPEN_TRADES',
   'MAX_PORTFOLIO_EXPOSURE',
   'RISK_PER_TRADE',
+  'DRAWDOWN_DERISK',
 ]
 
 interface CreateRiskRuleDialogProps {

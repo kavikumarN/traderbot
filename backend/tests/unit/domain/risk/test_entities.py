@@ -160,3 +160,26 @@ def test_update_equity_peak_only_increases() -> None:
 
     state.update_equity_peak(Decimal("1100"))
     assert state.equity_peak == Decimal("1100")
+
+
+def test_de_risk_defaults_to_full_size_and_not_de_risked() -> None:
+    state = make_state()
+
+    assert state.de_risked is False
+    assert state.de_risk_multiplier == Decimal("1")
+
+
+def test_activate_and_rearm_de_risk() -> None:
+    state = make_state()
+
+    state.activate_de_risk(multiplier=Decimal("0.5"), reason="drawdown breach", now=_NOW)
+    assert state.de_risked is True
+    assert state.de_risk_multiplier == Decimal("0.5")
+    assert state.de_risk_reason == "drawdown breach"
+    assert state.de_risked_at == _NOW
+
+    state.rearm_de_risk()
+    assert state.de_risked is False
+    assert state.de_risk_multiplier == Decimal("1")
+    assert state.de_risk_reason is None
+    assert state.de_risked_at is None

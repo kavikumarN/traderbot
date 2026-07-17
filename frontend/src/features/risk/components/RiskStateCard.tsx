@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography } from '@mui/material'
 import { formatCurrency } from '@/shared/lib/format'
 import { getApiErrorMessage } from '@/shared/types/api'
-import { useResetCircuitBreakerMutation, useSetEmergencyStopMutation } from '../riskApi'
+import { useRearmDeRiskMutation, useResetCircuitBreakerMutation, useSetEmergencyStopMutation } from '../riskApi'
 import type { RiskState } from '../types'
 
 export function RiskStateCard({ state }: { state: RiskState }) {
@@ -11,6 +11,7 @@ export function RiskStateCard({ state }: { state: RiskState }) {
 
   const [setEmergencyStop, { isLoading: isTogglingStop }] = useSetEmergencyStopMutation()
   const [resetCircuitBreaker, { isLoading: isResetting }] = useResetCircuitBreakerMutation()
+  const [rearmDeRisk, { isLoading: isRearming }] = useRearmDeRiskMutation()
 
   async function handleToggleStop() {
     setError(null)
@@ -26,6 +27,15 @@ export function RiskStateCard({ state }: { state: RiskState }) {
     setError(null)
     try {
       await resetCircuitBreaker().unwrap()
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError))
+    }
+  }
+
+  async function handleRearm() {
+    setError(null)
+    try {
+      await rearmDeRisk().unwrap()
     } catch (submitError) {
       setError(getApiErrorMessage(submitError))
     }
@@ -72,6 +82,13 @@ export function RiskStateCard({ state }: { state: RiskState }) {
           </Alert>
         ) : null}
 
+        {state.de_risked ? (
+          <Alert severity="warning" className="mt-3">
+            De-risked — position sizing cut to {Number(state.de_risk_multiplier) * 100}% of normal
+            {state.de_risk_reason ? `: ${state.de_risk_reason}` : ''}. Requires a manual re-arm to restore full size.
+          </Alert>
+        ) : null}
+
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} className="mt-4" sx={{ alignItems: { sm: 'center' } }}>
           {!state.emergency_stop ? (
             <TextField
@@ -93,6 +110,11 @@ export function RiskStateCard({ state }: { state: RiskState }) {
           {state.circuit_breaker === 'OPEN' ? (
             <Button variant="outlined" disabled={isResetting} onClick={handleReset}>
               Reset Circuit Breaker
+            </Button>
+          ) : null}
+          {state.de_risked ? (
+            <Button variant="outlined" color="warning" disabled={isRearming} onClick={handleRearm}>
+              Re-arm Full Size
             </Button>
           ) : null}
         </Stack>

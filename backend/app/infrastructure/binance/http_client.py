@@ -63,8 +63,11 @@ class BinanceHttpClient:
         *,
         signed: bool = False,
         rate_limits: tuple[tuple[str, int], ...] = DEFAULT_RATE_LIMITS,
+        retry_policy: RetryPolicy | None = None,
     ) -> JsonValue:
-        return await self.request("GET", path, params, signed=signed, rate_limits=rate_limits)
+        return await self.request(
+            "GET", path, params, signed=signed, rate_limits=rate_limits, retry_policy=retry_policy
+        )
 
     async def post(
         self,
@@ -73,8 +76,11 @@ class BinanceHttpClient:
         *,
         signed: bool = True,
         rate_limits: tuple[tuple[str, int], ...] = DEFAULT_RATE_LIMITS,
+        retry_policy: RetryPolicy | None = None,
     ) -> JsonValue:
-        return await self.request("POST", path, params, signed=signed, rate_limits=rate_limits)
+        return await self.request(
+            "POST", path, params, signed=signed, rate_limits=rate_limits, retry_policy=retry_policy
+        )
 
     async def delete(
         self,
@@ -83,8 +89,11 @@ class BinanceHttpClient:
         *,
         signed: bool = True,
         rate_limits: tuple[tuple[str, int], ...] = DEFAULT_RATE_LIMITS,
+        retry_policy: RetryPolicy | None = None,
     ) -> JsonValue:
-        return await self.request("DELETE", path, params, signed=signed, rate_limits=rate_limits)
+        return await self.request(
+            "DELETE", path, params, signed=signed, rate_limits=rate_limits, retry_policy=retry_policy
+        )
 
     async def put(
         self,
@@ -93,8 +102,11 @@ class BinanceHttpClient:
         *,
         signed: bool = False,
         rate_limits: tuple[tuple[str, int], ...] = DEFAULT_RATE_LIMITS,
+        retry_policy: RetryPolicy | None = None,
     ) -> JsonValue:
-        return await self.request("PUT", path, params, signed=signed, rate_limits=rate_limits)
+        return await self.request(
+            "PUT", path, params, signed=signed, rate_limits=rate_limits, retry_policy=retry_policy
+        )
 
     async def request(
         self,
@@ -104,6 +116,7 @@ class BinanceHttpClient:
         *,
         signed: bool,
         rate_limits: tuple[tuple[str, int], ...] = DEFAULT_RATE_LIMITS,
+        retry_policy: RetryPolicy | None = None,
     ) -> JsonValue:
         for bucket, weight in rate_limits:
             await self._rate_limiter.acquire(bucket, weight)
@@ -111,7 +124,7 @@ class BinanceHttpClient:
         async def _do() -> JsonValue:
             return await self._send_once(method, path, params or {}, signed=signed)
 
-        return await retry_async(_do, policy=self._retry_policy)
+        return await retry_async(_do, policy=retry_policy or self._retry_policy)
 
     async def _send_once(self, method: str, path: str, params: dict[str, Any], *, signed: bool) -> JsonValue:
         request_params = dict(params)

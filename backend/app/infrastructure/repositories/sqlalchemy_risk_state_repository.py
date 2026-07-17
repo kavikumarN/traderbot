@@ -26,6 +26,10 @@ def _to_domain(model: RiskStateModel) -> RiskState:
         daily_loss=model.daily_loss,
         daily_loss_date=model.daily_loss_date,
         equity_peak=model.equity_peak,
+        de_risked=model.de_risked,
+        de_risk_multiplier=model.de_risk_multiplier,
+        de_risk_reason=model.de_risk_reason,
+        de_risked_at=model.de_risked_at,
     )
 
 
@@ -58,6 +62,10 @@ class SqlAlchemyRiskStateRepository(RiskStateRepository):
                     daily_loss=state.daily_loss,
                     daily_loss_date=state.daily_loss_date,
                     equity_peak=state.equity_peak,
+                    de_risked=state.de_risked,
+                    de_risk_multiplier=state.de_risk_multiplier,
+                    de_risk_reason=state.de_risk_reason,
+                    de_risked_at=state.de_risked_at,
                     updated_at=state.updated_at,
                 )
             )
@@ -73,6 +81,10 @@ class SqlAlchemyRiskStateRepository(RiskStateRepository):
             model.daily_loss = state.daily_loss
             model.daily_loss_date = state.daily_loss_date
             model.equity_peak = state.equity_peak
+            model.de_risked = state.de_risked
+            model.de_risk_multiplier = state.de_risk_multiplier
+            model.de_risk_reason = state.de_risk_reason
+            model.de_risked_at = state.de_risked_at
             model.updated_at = state.updated_at
 
         await self._session.flush()

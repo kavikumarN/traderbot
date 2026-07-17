@@ -52,6 +52,11 @@ export const riskApi = apiSlice.injectEndpoints({
       invalidatesTags: ['RiskState'],
     }),
 
+    rearmDeRisk: builder.mutation<RiskState, void>({
+      query: () => ({ url: '/api/v1/risk/de-risk/rearm', method: 'POST' }),
+      invalidatesTags: ['RiskState'],
+    }),
+
     calculatePositionSize: builder.mutation<PositionSizeResponse, PositionSizeRequest>({
       query: (body) => ({ url: '/api/v1/risk/position-size', method: 'POST', data: body }),
     }),
@@ -66,5 +71,6 @@ export const {
   useDeleteRiskRuleMutation,
   useSetEmergencyStopMutation,
   useResetCircuitBreakerMutation,
+  useRearmDeRiskMutation,
   useCalculatePositionSizeMutation,
 } = riskApi

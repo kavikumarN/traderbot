@@ -57,6 +57,10 @@ class RiskStateResponse(BaseModel):
     daily_loss: str
     daily_loss_date: date | None
     equity_peak: str
+    de_risked: bool
+    de_risk_multiplier: str
+    de_risk_reason: str | None
+    de_risked_at: datetime | None
     is_trading_allowed: bool
     updated_at: datetime
 

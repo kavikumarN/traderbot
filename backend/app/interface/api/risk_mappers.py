@@ -37,6 +37,10 @@ def risk_state_to_response(state: RiskState) -> RiskStateResponse:
         daily_loss=str(state.daily_loss),
         daily_loss_date=state.daily_loss_date,
         equity_peak=str(state.equity_peak),
+        de_risked=state.de_risked,
+        de_risk_multiplier=str(state.de_risk_multiplier),
+        de_risk_reason=state.de_risk_reason,
+        de_risked_at=state.de_risked_at,
         is_trading_allowed=state.is_trading_allowed,
         updated_at=state.updated_at,
     )

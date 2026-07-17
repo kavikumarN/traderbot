@@ -12,6 +12,7 @@ export type RiskRuleType =
   | 'MAX_OPEN_TRADES'
   | 'MAX_PORTFOLIO_EXPOSURE'
   | 'RISK_PER_TRADE'
+  | 'DRAWDOWN_DERISK'
 
 export type CircuitBreakerState = 'CLOSED' | 'OPEN'
 
@@ -54,6 +55,10 @@ export interface RiskState {
   daily_loss: string
   daily_loss_date: string | null
   equity_peak: string
+  de_risked: boolean
+  de_risk_multiplier: string
+  de_risk_reason: string | null
+  de_risked_at: string | null
   is_trading_allowed: boolean
   updated_at: string
 }

@@ -12,12 +12,14 @@ from app.application.use_cases.risk.calculate_position_size import (
     CalculatePositionSizeUseCase,
 )
 from app.application.use_cases.risk.get_risk_state import GetRiskStateUseCase
+from app.application.use_cases.risk.rearm_de_risk import RearmDeRiskUseCase
 from app.application.use_cases.risk.reset_circuit_breaker import ResetCircuitBreakerUseCase
 from app.application.use_cases.risk.set_emergency_stop import (
     SetEmergencyStopCommand,
     SetEmergencyStopUseCase,
 )
 from app.domain.exchange.enums import OrderSide
+from app.domain.risk.entities import RiskState
 from app.domain.risk.enums import CircuitBreakerState
 from app.domain.trading.entities import ExchangeAccount
 from app.domain.trading.enums import AccountStatus
@@ -73,6 +75,28 @@ async def test_reset_circuit_breaker_clears_a_tripped_state(uow, uow_factory) ->
     reset_state = await use_case.execute(user_id=user_id)
 
     assert reset_state.circuit_breaker == CircuitBreakerState.CLOSED
+
+
+async def test_rearm_de_risk_clears_an_active_de_risk(uow, uow_factory) -> None:
+    user_id = uuid.uuid4()
+    await uow.risk_state.upsert(
+        RiskState(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            circuit_breaker=CircuitBreakerState.CLOSED,
+            updated_at=datetime.now(UTC),
+            de_risked=True,
+            de_risk_multiplier=Decimal("0.25"),
+            de_risk_reason="drawdown breach",
+        )
+    )
+
+    use_case = RearmDeRiskUseCase(uow_factory, RiskEngine())
+    state = await use_case.execute(user_id=user_id)
+
+    assert state.de_risked is False
+    assert state.de_risk_multiplier == Decimal("1")
+    assert state.de_risk_reason is None
 
 
 async def test_calculate_position_size_with_no_account_yet_returns_zero_quantity(uow_factory) -> None:

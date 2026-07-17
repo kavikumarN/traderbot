@@ -59,4 +59,8 @@ class RiskStateModel(Base):
     daily_loss: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False, default=Decimal(0))
     daily_loss_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     equity_peak: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False, default=Decimal(0))
+    de_risked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    de_risk_multiplier: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False, default=Decimal(1))
+    de_risk_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    de_risked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

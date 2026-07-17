@@ -28,6 +28,7 @@ _THRESHOLD_REQUIRED_TYPES = frozenset(
         RiskRuleType.MAX_OPEN_TRADES,
         RiskRuleType.MAX_PORTFOLIO_EXPOSURE,
         RiskRuleType.RISK_PER_TRADE,
+        RiskRuleType.DRAWDOWN_DERISK,
     }
 )
 
@@ -88,6 +89,17 @@ class RiskState:
     daily_loss: Decimal = field(default_factory=lambda: Decimal(0))
     daily_loss_date: date | None = None
     equity_peak: Decimal = field(default_factory=lambda: Decimal(0))
+    # De-risking: a softer sibling of the circuit breaker. Where the circuit
+    # breaker halts trading outright (and can auto-resume after a cooldown),
+    # de-risking only scales `suggest_position_size` down by
+    # `de_risk_multiplier` and, deliberately, never auto-clears — an
+    # operator must call `rearm_de_risk` once they've reviewed the drawdown,
+    # so an account can't silently creep back to full size while it's still
+    # underwater.
+    de_risked: bool = False
+    de_risk_multiplier: Decimal = field(default_factory=lambda: Decimal(1))
+    de_risk_reason: str | None = None
+    de_risked_at: datetime | None = None
 
     @property
     def is_trading_allowed(self) -> bool:
@@ -152,3 +164,15 @@ class RiskState:
         if self.equity_peak <= 0:
             return Decimal(0)
         return max(Decimal(0), (self.equity_peak - current_equity) / self.equity_peak)
+
+    def activate_de_risk(self, *, multiplier: Decimal, reason: str, now: datetime) -> None:
+        self.de_risked = True
+        self.de_risk_multiplier = multiplier
+        self.de_risk_reason = reason
+        self.de_risked_at = now
+
+    def rearm_de_risk(self) -> None:
+        self.de_risked = False
+        self.de_risk_multiplier = Decimal(1)
+        self.de_risk_reason = None
+        self.de_risked_at = None

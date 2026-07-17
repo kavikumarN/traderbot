@@ -265,6 +265,161 @@ async def test_record_fill_winning_trade_resets_streak_without_tripping(uow) -> 
     assert state.circuit_breaker == CircuitBreakerState.CLOSED
 
 
+async def test_record_fill_triggers_de_risk_when_drawdown_rule_configured(uow) -> None:
+    engine = RiskEngine()
+    account = make_account()
+    await uow.risk_rules.add(
+        make_rule(account.user_id, RiskRuleType.DRAWDOWN_DERISK, Decimal("0.1"), config={"size_multiplier": "0.25"})
+    )
+    wallet = Wallet(
+        id=uuid.uuid4(),
+        exchange_account_id=account.id,
+        asset="USDT",
+        free=Decimal("1000"),
+        locked=Decimal("0"),
+        updated_at=_NOW,
+    )
+    await uow.wallets.upsert(wallet)
+    # First fill establishes the equity peak at 1000.
+    await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("0"))
+
+    # Equity drops 15%, breaching the 10% de-risk trigger.
+    wallet.free = Decimal("850")
+    await uow.wallets.upsert(wallet)
+    state = await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("-150"))
+
+    assert state.de_risked is True
+    assert state.de_risk_multiplier == Decimal("0.25")
+    assert state.de_risk_reason is not None
+    # De-risking scales sizing down; it's not the circuit breaker's halt.
+    assert state.circuit_breaker == CircuitBreakerState.CLOSED
+
+
+async def test_record_fill_without_derisk_rule_never_de_risks(uow) -> None:
+    engine = RiskEngine()
+    account = make_account()
+    wallet = Wallet(
+        id=uuid.uuid4(),
+        exchange_account_id=account.id,
+        asset="USDT",
+        free=Decimal("1000"),
+        locked=Decimal("0"),
+        updated_at=_NOW,
+    )
+    await uow.wallets.upsert(wallet)
+    await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("0"))
+
+    wallet.free = Decimal("500")
+    await uow.wallets.upsert(wallet)
+    state = await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("-500"))
+
+    assert state.de_risked is False
+
+
+async def test_de_risk_does_not_auto_clear_when_drawdown_recovers(uow) -> None:
+    engine = RiskEngine()
+    account = make_account()
+    await uow.risk_rules.add(make_rule(account.user_id, RiskRuleType.DRAWDOWN_DERISK, Decimal("0.1")))
+    wallet = Wallet(
+        id=uuid.uuid4(),
+        exchange_account_id=account.id,
+        asset="USDT",
+        free=Decimal("1000"),
+        locked=Decimal("0"),
+        updated_at=_NOW,
+    )
+    await uow.wallets.upsert(wallet)
+    await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("0"))
+
+    wallet.free = Decimal("850")
+    await uow.wallets.upsert(wallet)
+    state = await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("-150"))
+    assert state.de_risked is True
+
+    # Equity fully recovers back to the peak — de-risking must still hold
+    # until a human explicitly re-arms it.
+    wallet.free = Decimal("1000")
+    await uow.wallets.upsert(wallet)
+    state = await engine.record_fill(uow, account=account, realized_pnl_delta=Decimal("150"))
+
+    assert state.de_risked is True
+
+
+async def test_suggest_position_size_applies_de_risk_multiplier(uow) -> None:
+    engine = RiskEngine()
+    account = make_account()
+    await uow.wallets.upsert(
+        Wallet(
+            id=uuid.uuid4(),
+            exchange_account_id=account.id,
+            asset="USDT",
+            free=Decimal("1000"),
+            locked=Decimal("0"),
+            updated_at=_NOW,
+        )
+    )
+    await uow.risk_state.upsert(
+        RiskState(
+            id=uuid.uuid4(),
+            user_id=account.user_id,
+            circuit_breaker=CircuitBreakerState.CLOSED,
+            updated_at=_NOW,
+            de_risked=True,
+            de_risk_multiplier=Decimal("0.25"),
+        )
+    )
+
+    quantity, stop_loss_price, _ = await engine.suggest_position_size(
+        uow, account=account, side=OrderSide.BUY, entry_price=Decimal("100")
+    )
+
+    assert stop_loss_price == Decimal("98.00")
+    assert quantity == Decimal("1.25")  # 5 (full size) x the 0.25 multiplier
+
+
+async def test_suggest_position_size_ignores_multiplier_when_not_de_risked(uow) -> None:
+    engine = RiskEngine()
+    account = make_account()
+    await uow.wallets.upsert(
+        Wallet(
+            id=uuid.uuid4(),
+            exchange_account_id=account.id,
+            asset="USDT",
+            free=Decimal("1000"),
+            locked=Decimal("0"),
+            updated_at=_NOW,
+        )
+    )
+
+    quantity, _, _ = await engine.suggest_position_size(
+        uow, account=account, side=OrderSide.BUY, entry_price=Decimal("100")
+    )
+
+    assert quantity == Decimal("5")
+
+
+async def test_rearm_de_risk_restores_full_size(uow) -> None:
+    engine = RiskEngine()
+    user_id = uuid.uuid4()
+    await uow.risk_state.upsert(
+        RiskState(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            circuit_breaker=CircuitBreakerState.CLOSED,
+            updated_at=_NOW,
+            de_risked=True,
+            de_risk_multiplier=Decimal("0.25"),
+            de_risk_reason="drawdown breach",
+        )
+    )
+
+    state = await engine.rearm_de_risk(uow, user_id=user_id)
+
+    assert state.de_risked is False
+    assert state.de_risk_multiplier == Decimal("1")
+    assert state.de_risk_reason is None
+
+
 async def test_compute_equity_combines_cash_and_position_notional(uow) -> None:
     engine = RiskEngine()
     account = make_account()

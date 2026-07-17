@@ -72,6 +72,7 @@ DEFAULT_CONSECUTIVE_LOSS_LIMIT = 5
 DEFAULT_CIRCUIT_BREAKER_COOLDOWN = timedelta(hours=1)
 DEFAULT_MAX_RISK_SCORE = Decimal("90")
 DEFAULT_ORDER_RATE_WINDOW_SECONDS = 60
+DEFAULT_DERISK_SIZE_MULTIPLIER = Decimal("0.5")
 _ORDER_HISTORY_LOOKBACK = 200
 
 
@@ -212,13 +213,20 @@ class RiskEngine:
         state.update_equity_peak(equity)
         state.record_trade_result(realized_pnl_delta)
 
+        rules = await self._active_rules(uow, account.user_id, None)
+
         if state.circuit_breaker == CircuitBreakerState.CLOSED:
-            rules = await self._active_rules(uow, account.user_id, None)
             trip_reason = self._check_auto_trip(rules=rules, state=state, equity=equity)
             if trip_reason is not None:
                 state.trip_circuit_breaker(
                     reason=trip_reason, now=now, resume_at=now + self._circuit_breaker_cooldown
                 )
+
+        if not state.de_risked:
+            derisk = self._check_derisk_trigger(rules=rules, state=state, equity=equity)
+            if derisk is not None:
+                reason, multiplier = derisk
+                state.activate_de_risk(multiplier=multiplier, reason=reason, now=now)
 
         state.updated_at = now
         await uow.risk_state.upsert(state)
@@ -271,6 +279,18 @@ class RiskEngine:
         await uow.risk_state.upsert(state)
         return state
 
+    async def rearm_de_risk(self, uow: UnitOfWork, *, user_id: uuid.UUID) -> RiskState:
+        """The de-risk counterpart to `reset_circuit_breaker` — but unlike
+        the breaker, de-risking never clears on its own (see `RiskState`),
+        so this is the only way an account returns to full position sizing
+        after a drawdown-triggered cut."""
+        now = datetime.now(UTC)
+        state = await self._load_state(uow, user_id, now)
+        state.rearm_de_risk()
+        state.updated_at = now
+        await uow.risk_state.upsert(state)
+        return state
+
     async def suggest_position_size(
         self,
         uow: UnitOfWork,
@@ -306,6 +326,12 @@ class RiskEngine:
         quantity = calculate_position_size(
             equity=equity, risk_per_trade_pct=risk_pct, entry_price=entry_price, stop_loss_price=stop_loss_price
         )
+
+        if account is not None:
+            state = await self._load_state(uow, account.user_id, datetime.now(UTC))
+            if state.de_risked:
+                quantity *= state.de_risk_multiplier
+
         return quantity, stop_loss_price, take_profit_price
 
     # --- internals -----------------------------------------------------------------------------
@@ -416,6 +442,26 @@ class RiskEngine:
             )
 
         return None
+
+    def _check_derisk_trigger(
+        self, *, rules: list[RiskRule], state: RiskState, equity: Decimal
+    ) -> tuple[str, Decimal] | None:
+        """Opt-in, like `_check_auto_trip`'s drawdown/daily-loss checks: only
+        fires when the account has an active `DRAWDOWN_DERISK` rule, not off
+        some engine-wide default — an account that hasn't configured this
+        should see no behavior change."""
+        rule = next((r for r in rules if r.rule_type == RiskRuleType.DRAWDOWN_DERISK), None)
+        if rule is None or equity <= 0:
+            return None
+
+        drawdown = state.drawdown_pct(equity)
+        if drawdown < rule.threshold:
+            return None
+
+        multiplier_raw = rule.config.get("size_multiplier")
+        multiplier = Decimal(str(multiplier_raw)) if multiplier_raw is not None else DEFAULT_DERISK_SIZE_MULTIPLIER
+        reason = f"Drawdown {drawdown:.4f} reached the {rule.threshold} de-risk trigger"
+        return reason, multiplier
 
     def _compute_risk_score(
         self,

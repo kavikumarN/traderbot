@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+from app.domain.exchange.exceptions import ExchangeConnectionError, OrderNotFoundError
 from app.domain.exchange.models.account import ExchangeOrder
 from app.domain.exchange.models.requests import PlaceOrderRequest
 from app.domain.exchange.ports.order_placer import IOrderPlacer
 from app.infrastructure.binance import mappers
 from app.infrastructure.binance.http_client import BinanceHttpClient
+from app.infrastructure.binance.retry import RetryPolicy
+
+# A connection error on POST /order is ambiguous — the order may have been
+# placed and only the response was lost. Blindly re-sending it risks a real
+# duplicate order (Binance only rejects a re-used newClientOrderId while the
+# original is still open; once it reaches a terminal state the id can be
+# reused and a "retry" becomes a second real order). So this call disables
+# `BinanceHttpClient`'s own automatic retry and instead verifies by
+# client_order_id before ever resubmitting.
+_NO_AUTO_RETRY = RetryPolicy(max_attempts=1)
+_MAX_PLACEMENT_ATTEMPTS = 3
 
 
 class BinanceOrderClient(IOrderPlacer):
@@ -30,13 +42,32 @@ class BinanceOrderClient(IOrderPlacer):
         if request.client_order_id is not None:
             params["newClientOrderId"] = request.client_order_id
 
-        data = await self._http.post(
-            "/api/v3/order",
-            params,
-            signed=True,
-            rate_limits=(("REQUEST_WEIGHT", 1), ("ORDERS", 1)),
-        )
-        return mappers.to_exchange_order(data)
+        for attempt in range(1, _MAX_PLACEMENT_ATTEMPTS + 1):
+            try:
+                data = await self._http.post(
+                    "/api/v3/order",
+                    params,
+                    signed=True,
+                    rate_limits=(("REQUEST_WEIGHT", 1), ("ORDERS", 1)),
+                    retry_policy=_NO_AUTO_RETRY,
+                )
+                return mappers.to_exchange_order(data)
+            except ExchangeConnectionError:
+                if request.client_order_id is None or attempt == _MAX_PLACEMENT_ATTEMPTS:
+                    raise
+                existing = await self._find_placed_order(request.symbol, request.client_order_id)
+                if existing is not None:
+                    return existing
+                # Genuinely never reached Binance — safe to resubmit with
+                # the same client_order_id.
+
+        raise AssertionError("unreachable: loop above always returns or raises")
+
+    async def _find_placed_order(self, symbol: str, client_order_id: str) -> ExchangeOrder | None:
+        try:
+            return await self.get_order(symbol, client_order_id=client_order_id)
+        except OrderNotFoundError:
+            return None
 
     async def cancel_order(
         self,

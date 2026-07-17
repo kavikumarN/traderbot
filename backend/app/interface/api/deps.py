@@ -50,6 +50,7 @@ from app.application.use_cases.risk.delete_risk_rule import DeleteRiskRuleUseCas
 from app.application.use_cases.risk.get_risk_rule import GetRiskRuleUseCase
 from app.application.use_cases.risk.get_risk_state import GetRiskStateUseCase
 from app.application.use_cases.risk.list_risk_rules import ListRiskRulesUseCase
+from app.application.use_cases.risk.rearm_de_risk import RearmDeRiskUseCase
 from app.application.use_cases.risk.reset_circuit_breaker import ResetCircuitBreakerUseCase
 from app.application.use_cases.risk.set_emergency_stop import SetEmergencyStopUseCase
 from app.application.use_cases.risk.update_risk_rule import UpdateRiskRuleUseCase
@@ -336,6 +337,13 @@ def get_reset_circuit_breaker_use_case(
     risk_engine: RiskEngine = Depends(get_risk_engine),
 ) -> ResetCircuitBreakerUseCase:
     return ResetCircuitBreakerUseCase(uow_factory, risk_engine)
+
+
+def get_rearm_de_risk_use_case(
+    uow_factory: UnitOfWorkFactory = Depends(get_uow_factory),
+    risk_engine: RiskEngine = Depends(get_risk_engine),
+) -> RearmDeRiskUseCase:
+    return RearmDeRiskUseCase(uow_factory, risk_engine)
 
 
 def get_calculate_position_size_use_case(
